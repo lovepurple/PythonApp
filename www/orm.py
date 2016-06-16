@@ -98,7 +98,69 @@ class Model(dict,metaclass=ModelMetaclass):
 		if value is None:
 			field = self.__mappings__[key]
 			if field.default is not None:
-				value = field.default()
+				#callable 判断是否可调用 (field.default 是不是一个方法)
+				#下面的写法 跟 ? : 三目运算符一致 Python 里没有三目运算符
+				value = field.default() if callable(field.defau) else field.default
+				logging.info("using default value for %s:%s"%(key,str(value)))
 
-				#callable 判断是否可调用
+		return value;
 				
+				
+#各种Field
+
+#Field基类
+class Field(object):
+
+	def __init__(self,name,colum_type,primary_key,default):
+		self.name = name
+		self.colum_type = colum_type
+		self.primary_key = primary_key
+		self.default = default
+
+	#__str__作用相当于(ToString, 打印类的信息)
+	def __str__(self):
+		return "<%s,%s,%s>"%(self.__class__.__name__,self.colum_type,self.name)
+
+class StringField(Field):
+
+	def __init__(self,name=None,primary_key = False,default=None,dll='varchar(100)'):
+		super().__init__(name,dll,primary_key,default)
+
+class ModelMetaclass(type):
+
+	def __new__(cls,name,bases,attrs):
+
+		if name =='Model':
+			return type.__new__(cls,name,bases,attrs)
+
+		tableName = attrs.get("__table__",None) or name
+
+		mappings = dict()
+		fields = []
+		primaryKey = None
+
+		#attrs 是type的属性 相当于PropertyInfos
+		for k,v in attrs.items():
+			if isinstance(v,Field):
+				mappings[k] = v
+				if v.primary_key:
+					#主键重复
+					if primaryKey:
+						raise RuntimeError('Duplicate primary key for field:%s'%k)
+					primaryKey = k;
+				else:
+					fields.append(k)
+
+		if not primaryKey:
+			raise RuntimeError("Primary Key not found")
+
+		for k in mappings.keys():
+			attrs.pop(k)
+
+		escaped_fields=list(map(lambda f:"%s"%f,fields))
+
+		attrs['__mappings__'] = mappings
+		attrs['__table__']=tablename
+		
+
+
